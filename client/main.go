@@ -1,30 +1,18 @@
 package main
 
 import (
-	"net/http"
 	"context"
 	"log"
 	"time"
 
 	"google.golang.org/grpc"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc/keepalive"
 	"github.com/2HgO/grpc-gotag/pb"
-	js "github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/amsokol/mongo-go-driver-protobuf/pmongo"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gin-gonic/gin"
 )
-
-type helper struct{}
-
-func (h helper) Name() string {
-	return "helper"
-}
-
-func (h helper) Bind(r *http.Request, out interface{}) error {
-	return js.Unmarshal(r.Body, out.(proto.Message))
-}
-
-var bind = helper{}
 
 var kacp = keepalive.ClientParameters{
 	Time: 10 * time.Second,
@@ -45,7 +33,7 @@ func main() {
 
 	r.POST("/", func(c *gin.Context) {
 		req := new(pb.UserInfo)
-		if err := c.ShouldBindWith(req, bind); err != nil {
+		if err := c.ShouldBindJSON(req); err != nil {
 			c.Error(err)
 			c.JSON(500, gin.H{"status": "not good"})
 			return
@@ -57,6 +45,33 @@ func main() {
 			return
 		}
 
+		c.Data(200, "application/json", res.GetData())
+	})
+
+	r.GET("/:id", func(c *gin.Context) {
+		id, err := primitive.ObjectIDFromHex(c.Param("id"))
+		if err != nil {
+			c.Error(err)
+			c.JSON(500, gin.H{"status": "not good"})
+			return
+		}
+		req := &pb.UserID{Id: pmongo.NewObjectId(id)}
+		res, err := userClient.GetUser(context.TODO(), req)
+		if err != nil {
+			c.Error(err)
+			c.JSON(500, gin.H{"status": "not good"})
+			return
+		}
+		c.Data(200, "application/json", res.GetData())
+	})
+
+	r.GET("/", func(c *gin.Context) {
+		res, err := userClient.GetAllUsers(context.TODO(), &empty.Empty{})
+		if err != nil {
+			c.Error(err)
+			c.JSON(500, gin.H{"status": "not good"})
+			return
+		}
 		c.Data(200, "application/json", res.GetData())
 	})
 

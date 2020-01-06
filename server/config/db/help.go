@@ -13,6 +13,8 @@ import "reflect"
 
 import "errors"
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
 // Collection ...
 type Collection struct {
 	collection *mongo.Collection
@@ -31,6 +33,7 @@ var ErrorInvalidPipeline = errors.New("Pipeline must be slice")
 
 // Doc ...
 type Doc interface {
+	GetID() *primitive.ObjectID
 	SetModified(time.Time)
 	SetCreated(time.Time)
 	SetID(interface{})
@@ -39,7 +42,7 @@ type Doc interface {
 // SoftDoc ...
 type SoftDoc interface {
 	Doc
-	SetDeleted(bool)
+	SoftDoc()
 }
 
 // Insert ...
@@ -49,7 +52,10 @@ func (c *Collection) Insert(doc Doc) error {
 		return err
 	}
 	now := time.Now()
-	doc.SetCreated(now)
+	if doc.GetID() == nil {
+		doc.SetCreated(now)
+	}
+	
 	doc.SetModified(now)
 
 	res, err := con.InsertOne(NoContext, doc)
@@ -126,7 +132,6 @@ func (c *Collection) PartialUpdateOne(query interface{}, update interface{}, out
 
 // Update ...
 func (c *Collection) Update(query interface{}, update interface{}) (int64, error) {
-
 	con, err := c.collection.Clone()
 	if err != nil {
 		return 0, err
@@ -141,6 +146,9 @@ func (c *Collection) Update(query interface{}, update interface{}) (int64, error
 
 // DeleteOne ...
 func (c *Collection) DeleteOne(query interface{}, out Doc) error {
+	if out == nil {
+		return nil
+	}
 	if reflect.TypeOf(out).Kind() != reflect.Ptr {
 		return ErrorInvalidOutType
 	}
@@ -155,36 +163,37 @@ func (c *Collection) DeleteOne(query interface{}, out Doc) error {
 
 // SoftDelete ...
 func (c *Collection) SoftDelete(query interface{}, out SoftDoc) error {
-	if out == nil {
-		return nil
-	}
-	if reflect.TypeOf(out).Kind() != reflect.Ptr {
-		return ErrorInvalidOutType
-	}
-
-	if err := c.FindOne(query, out); err != nil {
+	if err := c.DeleteOne(query, out); err != nil {
 		return nil
 	}
 
-	out.SetDeleted(true)
-	return c.UpdateOne(query, out)
+	deleted := c.database.Collection(c.collection.Name()+"_deleted")
+	
+	return (&Collection{collection: deleted}).Insert(out)
 }
 
 // SoftRecover ...
 func (c *Collection) SoftRecover(query interface{}, out SoftDoc) error {
-	if out == nil {
-		return nil
-	}
-	if reflect.TypeOf(out).Kind() != reflect.Ptr {
-		return ErrorInvalidOutType
+	deleted := c.database.Collection(c.collection.Name()+"_deleted")
+
+	if err := (&Collection{collection: deleted}).DeleteOne(query, out); err != nil {
+		return err
 	}
 
-	if err := c.FindOne(query, out); err != nil {
-		return nil
-	}
+	out.SetModified(time.Now())
+	return c.Insert(out)
+}
 
-	out.SetDeleted(false)
-	return c.UpdateOne(query, out)
+// FindOneDeleted ...
+func (c *Collection) FindOneDeleted(query interface{}, out SoftDoc) error {
+	deleted := c.database.Collection(c.collection.Name()+"_deleted")
+	return (&Collection{collection: deleted}).FindOne(query, out)
+}
+
+// FindDeleted ...
+func (c *Collection) FindDeleted(query interface{}) (*mongo.Cursor, error) {
+	deleted := c.database.Collection(c.collection.Name()+"_deleted")
+	return (&Collection{collection: deleted}).Find(query)
 }
 
 // Aggregate ...

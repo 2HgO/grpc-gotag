@@ -18,10 +18,10 @@ func (s Server) GetUser(ctx context.Context, in *pb.UserID) (*pb.Res, error) {
 	if err := User.FindByID(in.GetId(), user); err != nil {
 		return nil, err
 	}
-	data, _ := marshaler.MarshalToString(user)
+	data, _ := json.Marshal(user)
 	return &pb.Res{
 		Success: true,
-		Data: []byte(data),
+		Data: data,
 	}, nil
 }
 
@@ -30,17 +30,17 @@ func (s Server) NewUser(ctx context.Context, in *pb.UserInfo) (*pb.Res, error) {
 	if err := User.Insert(in); err != nil {
 		return nil, err
 	}
-	data, _ := marshaler.MarshalToString(in)
+	data, _ := json.Marshal(in)
 	return &pb.Res{
 		Success: true,
-		Data: []byte(data),
+		Data: data,
 	}, nil
 }
 
 // GetAllUsers ...
 func (s Server) GetAllUsers(ctx context.Context, in *empty.Empty) (*pb.Res, error) {
 	users := []*pb.UserInfo{}
-	iter, err := User.Find(in)
+	iter, err := User.Find(map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +48,7 @@ func (s Server) GetAllUsers(ctx context.Context, in *empty.Empty) (*pb.Res, erro
 		return nil, err
 	}
 	data, _ := json.Marshal(users)
+
 	return &pb.Res{
 		Success: true,
 		Data: []byte(data),

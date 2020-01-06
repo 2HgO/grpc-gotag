@@ -19,11 +19,11 @@ message UserID {
 }
 
 message UserInfo {
-  pmongo.ObjectId id = 1 [(tagger.tags) = "json:\"_id,omitempty\" bson:\"_id,omitempty\""];
+  pmongo.ObjectId id = 1 [(tagger.tags) = "bson:\"_id,omitempty\""];
   google.protobuf.Timestamp createdAt = 2 [(tagger.tags) = "bson:\"createdAt,omitempty\""];
   google.protobuf.Timestamp modifiedAt = 3 [(tagger.tags) = "bson:\"modifiedAt,omitempty\""];
-  string firstName = 4 [(tagger.tags) = "bson:\"firstName,omitempty\""];
-  string lastName = 5 [(tagger.tags) = "bson:\"lastName,omitempty\""];
+  string firstName = 4 [(tagger.tags) = "bson:\"firstName,omitempty\" binding:\"required\""];
+  string lastName = 5 [(tagger.tags) = "bson:\"lastName,omitempty\" binding:\"required\""];
 }
 
 message Res {
